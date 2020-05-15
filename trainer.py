@@ -31,48 +31,6 @@ class Trainer:
         self.clipping_range = clipping_range
         self.env = gym.make(self.env_name)
 
-    def run(self,  ):
-        obs_dim = self.env.observation_space.shape[0]
-        act_dim = self.env.action_space.shape[0]
-        obs_dim += 1  # add 1 to obs dimension for time step feature (see run_episode())
-        now = datetime.utcnow().strftime("%b-%d_%H:%M:%S")  # create unique directories
-        logger = Logger(logname=self.env_name, now=now)
-        # aigym_path = os.path.join('/tmp', env_name, now)
-        # env = wrappers.Monitor(env, aigym_path, force=True)
-        scaler = Scaler(obs_dim)
-        val_func = CriticNetwork(obs_dim, self.hid1_mult)
-        policy = PPO_Policy(obs_dim, act_dim, self.kl_targ, self.hid1_mult, self.policy_logvar, self.clipping_range)
-        # run a few episodes of untrained policy to initialize scaler:
-        self.run_policy(policy, scaler, logger, episodes=5)
-
-        episode = 0
-        while episode < self.num_episodes:
-            trajectories = self.run_policy(policy, scaler, logger, episodes=self.batch_size)
-            episode += len(trajectories)
-            self.add_value(trajectories, val_func)  # add estimated values to episodes
-            self.add_disc_sum_rew(trajectories)  # calculated discounted sum of Rs
-            self.add_gae(trajectories)  # calculate advantage
-
-            # concatenate all episodes into single NumPy arrays
-            observes = np.concatenate([t['observes'] for t in trajectories])
-            actions = np.concatenate([t['actions'] for t in trajectories])
-            disc_sum_rew = np.concatenate([t['disc_sum_rew'] for t in trajectories])
-            advantages = np.concatenate([t['advantages'] for t in trajectories])
-            # normalize advantages
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-6)
-
-            # add various stats to training log:
-            self.log_batch_stats(observes, actions, advantages, disc_sum_rew, logger, episode)
-            # update policy
-            policy.backward(observes, actions, advantages, logger)
-            # update value function
-            val_func.backward(observes, disc_sum_rew, logger)
-            # write logger results to file and stdout
-            logger.write(display=True)
-        logger.close()
-        policy.close_sess()
-        val_func.close_sess()
-
     def run_episode(self, policy, scaler, rendering=False):
         """ Run single episode with option to animate
 
@@ -148,6 +106,48 @@ class Trainer:
                     'Steps': total_steps})
 
         return trajectories
+
+    def run(self,  ):
+        obs_dim = self.env.observation_space.shape[0]
+        act_dim = self.env.action_space.shape[0]
+        obs_dim += 1  # add 1 to obs dimension for time step feature (see run_episode())
+        now = datetime.utcnow().strftime("%b-%d_%H:%M:%S")  # create unique directories
+        logger = Logger(logname=self.env_name, now=now)
+        # aigym_path = os.path.join('/tmp', env_name, now)
+        # env = wrappers.Monitor(env, aigym_path, force=True)
+        scaler = Scaler(obs_dim)
+        val_func = CriticNetwork(obs_dim, self.hid1_mult)
+        policy = PPO_Policy(obs_dim, act_dim, self.kl_targ, self.hid1_mult, self.policy_logvar, self.clipping_range)
+        # run a few episodes of untrained policy to initialize scaler:
+        self.run_policy(policy, scaler, logger, episodes=5)
+
+        episode = 0
+        while episode < self.num_episodes:
+            trajectories = self.run_policy(policy, scaler, logger, episodes=self.batch_size)
+            episode += len(trajectories)
+            self.add_value(trajectories, val_func)  # add estimated values to episodes
+            self.add_disc_sum_rew(trajectories)  # calculated discounted sum of Rs
+            self.add_gae(trajectories)  # calculate advantage
+
+            # concatenate all episodes into single NumPy arrays
+            observes = np.concatenate([t['observes'] for t in trajectories])
+            actions = np.concatenate([t['actions'] for t in trajectories])
+            disc_sum_rew = np.concatenate([t['disc_sum_rew'] for t in trajectories])
+            advantages = np.concatenate([t['advantages'] for t in trajectories])
+            # normalize advantages
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-6)
+
+            # add various stats to training log:
+            self.log_batch_stats(observes, actions, advantages, disc_sum_rew, logger, episode)
+            # update policy
+            policy.backward(observes, actions, advantages, logger)
+            # update value function
+            val_func.backward(observes, disc_sum_rew, logger)
+            # write logger results to file and stdout
+            logger.write(display=True)
+        logger.close()
+        policy.close_sess()
+        val_func.close_sess()
 
     def add_disc_sum_rew(self, trajectories):
         """ Adds discounted sum of rewards to all time steps of all trajectories
