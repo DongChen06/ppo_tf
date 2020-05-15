@@ -1,5 +1,5 @@
 # ENTER LIST OF LOG FILENAMES HERE:
-filepaths = ['../log-files/Pendulum-v0/log.csv']
+filepaths = ['../log-files/Pendulum-v0/log.csv']  # Pendulum-v0  LunarLanderContinuous-v2
 
 import numpy as np
 import pandas as pd

@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
+
 class MlpPolicy:
     def __init__(self, obs_dim, act_dim, hid1_mult, policy_logvar, obs_ph):
         self.obs_dim = obs_dim

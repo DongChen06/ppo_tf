@@ -3,7 +3,7 @@ import numpy as np
 from sklearn.utils import shuffle
 
 
-class NNValueFunction(object):
+class CriticNetwork(object):
     """ NN-based state-value function """
     def __init__(self, obs_dim, hid1_mult):
         """
@@ -17,16 +17,17 @@ class NNValueFunction(object):
         self.hid1_mult = hid1_mult
         self.epochs = 10
         self.lr = None  # learning rate set in _build_graph()
-        self._build_graph()
+        self.build_graph()
         self.sess = tf.Session(graph=self.g)
         self.sess.run(self.init)
 
-    def _build_graph(self):
+    def build_graph(self):
         """ Construct TensorFlow graph, including loss function, init op and train op """
         self.g = tf.Graph()
         with self.g.as_default():
             self.obs_ph = tf.placeholder(tf.float32, (None, self.obs_dim), 'obs_valfunc')
             self.val_ph = tf.placeholder(tf.float32, (None,), 'val_valfunc')
+
             # hid1 layer size is 10x obs_dim, hid3 size is 10, and hid2 is geometric mean
             hid1_size = self.obs_dim * self.hid1_mult  # default multipler 10 chosen empirically on 'Hopper-v1'
             hid3_size = 5  # 5 chosen empirically on 'Hopper-v1'
@@ -35,6 +36,7 @@ class NNValueFunction(object):
             self.lr = 1e-2 / np.sqrt(hid2_size)  # 1e-3 empirically determined
             print('Value Params -- h1: {}, h2: {}, h3: {}, lr: {:.3g}'
                   .format(hid1_size, hid2_size, hid3_size, self.lr))
+
             # 3 hidden layers with tanh activations
             out = tf.layers.dense(self.obs_ph, hid1_size, tf.tanh,
                                   kernel_initializer=tf.random_normal_initializer(
