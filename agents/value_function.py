@@ -5,7 +5,7 @@ from sklearn.utils import shuffle
 
 class CriticNetwork(object):
     """ NN-based state-value function """
-    def __init__(self, obs_dim, hid1_mult):
+    def __init__(self, sess, obs_dim, hid1_mult):
         """
         Args:
             obs_dim: number of dimensions in observation vector (int)
@@ -17,46 +17,39 @@ class CriticNetwork(object):
         self.hid1_mult = hid1_mult
         self.epochs = 10
         self.lr = None  # learning rate set in _build_graph()
-        self.build_graph()
-        self.sess = tf.Session(graph=self.g)
-        self.sess.run(self.init)
+        self.sess = sess
 
     def build_graph(self):
         """ Construct TensorFlow graph, including loss function, init op and train op """
-        self.g = tf.Graph()
-        with self.g.as_default():
-            self.obs_ph = tf.placeholder(tf.float32, (None, self.obs_dim), 'obs_valfunc')
-            self.val_ph = tf.placeholder(tf.float32, (None,), 'val_valfunc')
+        self.obs_ph = tf.placeholder(tf.float32, (None, self.obs_dim), 'obs_valfunc')
+        self.val_ph = tf.placeholder(tf.float32, (None,), 'val_valfunc')
 
-            # hid1 layer size is 10x obs_dim, hid3 size is 10, and hid2 is geometric mean
-            hid1_size = self.obs_dim * self.hid1_mult  # default multipler 10 chosen empirically on 'Hopper-v1'
-            hid3_size = 5  # 5 chosen empirically on 'Hopper-v1'
-            hid2_size = int(np.sqrt(hid1_size * hid3_size))
-            # heuristic to set learning rate based on NN size (tuned on 'Hopper-v1')
-            self.lr = 1e-2 / np.sqrt(hid2_size)  # 1e-3 empirically determined
-            print('Value Params -- h1: {}, h2: {}, h3: {}, lr: {:.3g}'
-                  .format(hid1_size, hid2_size, hid3_size, self.lr))
+        # hid1 layer size is 10x obs_dim, hid3 size is 10, and hid2 is geometric mean
+        hid1_size = self.obs_dim * self.hid1_mult  # default multipler 10 chosen empirically on 'Hopper-v1'
+        hid3_size = 5  # 5 chosen empirically on 'Hopper-v1'
+        hid2_size = int(np.sqrt(hid1_size * hid3_size))
+        # heuristic to set learning rate based on NN size (tuned on 'Hopper-v1')
+        self.lr = 1e-2 / np.sqrt(hid2_size)  # 1e-3 empirically determined
+        print('Value Params -- h1: {}, h2: {}, h3: {}, lr: {:.3g}'
+              .format(hid1_size, hid2_size, hid3_size, self.lr))
 
-            # 3 hidden layers with tanh activations
-            out = tf.layers.dense(self.obs_ph, hid1_size, tf.tanh,
-                                  kernel_initializer=tf.random_normal_initializer(
-                                      stddev=np.sqrt(1 / self.obs_dim)), name="h1")
-            out = tf.layers.dense(out, hid2_size, tf.tanh,
-                                  kernel_initializer=tf.random_normal_initializer(
-                                      stddev=np.sqrt(1 / hid1_size)), name="h2")
-            out = tf.layers.dense(out, hid3_size, tf.tanh,
-                                  kernel_initializer=tf.random_normal_initializer(
-                                      stddev=np.sqrt(1 / hid2_size)), name="h3")
-            out = tf.layers.dense(out, 1,
-                                  kernel_initializer=tf.random_normal_initializer(
-                                      stddev=np.sqrt(1 / hid3_size)), name='output')
-            self.out = tf.squeeze(out)
-            self.loss = tf.reduce_mean(tf.square(self.out - self.val_ph))  # squared loss
-            optimizer = tf.train.AdamOptimizer(self.lr)
-            self.train_op = optimizer.minimize(self.loss)
-            self.init = tf.global_variables_initializer()
-        self.sess = tf.Session(graph=self.g)
-        self.sess.run(self.init)
+        # 3 hidden layers with tanh activations
+        out = tf.layers.dense(self.obs_ph, hid1_size, tf.tanh,
+                              kernel_initializer=tf.random_normal_initializer(
+                                  stddev=np.sqrt(1 / self.obs_dim)), name="h1_critic")
+        out = tf.layers.dense(out, hid2_size, tf.tanh,
+                              kernel_initializer=tf.random_normal_initializer(
+                                  stddev=np.sqrt(1 / hid1_size)), name="h2_critic")
+        out = tf.layers.dense(out, hid3_size, tf.tanh,
+                              kernel_initializer=tf.random_normal_initializer(
+                                  stddev=np.sqrt(1 / hid2_size)), name="h3_critic")
+        out = tf.layers.dense(out, 1,
+                              kernel_initializer=tf.random_normal_initializer(
+                                  stddev=np.sqrt(1 / hid3_size)), name='output_critic')
+        self.out = tf.squeeze(out)
+        self.loss = tf.reduce_mean(tf.square(self.out - self.val_ph))  # squared loss
+        optimizer = tf.train.AdamOptimizer(self.lr)
+        self.train_op = optimizer.minimize(self.loss)
 
     def backward(self, x, y, logger):
         """ Fit model to current data batch + previous data batch

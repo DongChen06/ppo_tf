@@ -1,10 +1,11 @@
 import gym
 import numpy as np
-from agents.ppo_policy import PPO_Policy
+from agents.actor_function import ActorNetwork
 from agents.value_function import CriticNetwork
 import scipy.signal
 from common.utils import Logger, Scaler
 from datetime import datetime
+import tensorflow as tf
 
 
 class Trainer:
@@ -35,7 +36,6 @@ class Trainer:
         """ Run single episode with option to animate
 
         Args:
-            env: ai gym environment
             policy: policy object with sample() method
             scaler: scaler object, used to scale/offset each observation dimension
                 to a similar range
@@ -77,7 +77,6 @@ class Trainer:
         """ Run policy and collect data for a minimum of min_steps and min_episodes
 
         Args:
-            env: ai gym environment
             policy: policy object with sample() method
             scaler: scaler object, used to scale/offset each observation dimension
                 to a similar range
@@ -113,19 +112,33 @@ class Trainer:
         obs_dim += 1  # add 1 to obs dimension for time step feature (see run_episode())
         now = datetime.utcnow().strftime("%b-%d_%H:%M:%S")  # create unique directories
         logger = Logger(logname=self.env_name, now=now)
-        # aigym_path = os.path.join('/tmp', env_name, now)
-        # env = wrappers.Monitor(env, aigym_path, force=True)
         scaler = Scaler(obs_dim)
-        val_func = CriticNetwork(obs_dim, self.hid1_mult)
-        policy = PPO_Policy(obs_dim, act_dim, self.kl_targ, self.hid1_mult, self.policy_logvar, self.clipping_range)
-        # run a few episodes of untrained policy to initialize scaler:
-        self.run_policy(policy, scaler, logger, episodes=5)
 
+        # initialize tensorflow session
+        tf.reset_default_graph()
+        config = tf.ConfigProto(allow_soft_placement=True,
+                                intra_op_parallelism_threads=1,
+                                inter_op_parallelism_threads=1)
+        config.gpu_options.allow_growth = True
+        self.sess = tf.Session(config=config)
+
+        actor_network = ActorNetwork(self.sess, obs_dim, act_dim, self.kl_targ, self.hid1_mult, self.policy_logvar,
+                              self.clipping_range)
+        critic_network = CriticNetwork(self.sess, obs_dim, self.hid1_mult)
+
+        # initialize policy and value tensorflow graph
+        actor_network.build_graph()
+        critic_network.build_graph()
+        self.init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+        self.sess.run(self.init)
+
+        # run a few episodes of untrained policy to initialize scaler:
+        self.run_policy(actor_network, scaler, logger, episodes=5)
         episode = 0
         while episode < self.num_episodes:
-            trajectories = self.run_policy(policy, scaler, logger, episodes=self.batch_size)
+            trajectories = self.run_policy(actor_network, scaler, logger, episodes=self.batch_size)
             episode += len(trajectories)
-            self.add_value(trajectories, val_func)  # add estimated values to episodes
+            self.add_value(trajectories, critic_network)  # add estimated values to episodes
             self.add_disc_sum_rew(trajectories)  # calculated discounted sum of Rs
             self.add_gae(trajectories)  # calculate advantage
 
@@ -140,21 +153,20 @@ class Trainer:
             # add various stats to training log:
             self.log_batch_stats(observes, actions, advantages, disc_sum_rew, logger, episode)
             # update policy
-            policy.backward(observes, actions, advantages, logger)
+            actor_network.backward(observes, actions, advantages, logger)
             # update value function
-            val_func.backward(observes, disc_sum_rew, logger)
+            critic_network.backward(observes, disc_sum_rew, logger)
             # write logger results to file and stdout
             logger.write(display=True)
         logger.close()
-        policy.close_sess()
-        val_func.close_sess()
+        actor_network.close_sess()
+        critic_network.close_sess()
 
     def add_disc_sum_rew(self, trajectories):
         """ Adds discounted sum of rewards to all time steps of all trajectories
 
         Args:
             trajectories: as returned by run_policy()
-            gamma: discount
 
         Returns:
             None (mutates trajectories dictionary to add 'disc_sum_rew')

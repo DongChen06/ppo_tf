@@ -3,10 +3,10 @@ import tensorflow as tf
 from agents.networks import MlpPolicy
 
 
-class PPO_Policy(object):
+class ActorNetwork(object):
     """ NN-based policy approximation """
 
-    def __init__(self, obs_dim, act_dim, kl_targ, hid1_mult, policy_logvar, clipping_range=None):
+    def __init__(self, sess, obs_dim, act_dim, kl_targ, hid1_mult, policy_logvar, clipping_range=None):
         """
         Args:
             obs_dim: num observation dimensions (int)
@@ -26,20 +26,9 @@ class PPO_Policy(object):
         self.obs_dim = obs_dim
         self.act_dim = act_dim
         self.clipping_range = clipping_range
+        self.sess = sess
 
-        self._build_graph()
-        # launch TensorFlow session
-        self.sess = tf.Session(graph=self.g)
-        self.sess.run(self.init)
-
-    def _build_graph(self):
-        """ Build and initialize TensorFlow graph """
-        self.g = tf.Graph()
-        with self.g.as_default():
-            self.prepare_loss()
-            self.init = tf.global_variables_initializer()
-
-    def prepare_loss(self):
+    def build_graph(self):
         """
         Neural net for policy approximation function
 

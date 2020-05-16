@@ -67,7 +67,7 @@ class Logger(object):
             logname: name for log (e.g. 'Hopper-v1')
             now: unique sub-directory name (e.g. date/time string)
         """
-        path = os.path.join('log-files', logname)
+        path = os.path.join('log-files', logname, now)
         os.makedirs(path, exist_ok = True)
         filenames = glob.glob('*.py')  # put copy of all python files in log_dir
         for filename in filenames:     # for reference

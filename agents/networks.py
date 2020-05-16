@@ -20,13 +20,13 @@ class MlpPolicy:
         # 3 hidden layers with tanh activations
         out = tf.layers.dense(self.obs_ph, hid1_size, tf.tanh,
                               kernel_initializer=tf.random_normal_initializer(
-                                  stddev=np.sqrt(1 / self.obs_dim)), name="h1")
+                                  stddev=np.sqrt(1 / self.obs_dim)), name="h1_actor")
         out = tf.layers.dense(out, hid2_size, tf.tanh,
                               kernel_initializer=tf.random_normal_initializer(
-                                  stddev=np.sqrt(1 / hid1_size)), name="h2")
+                                  stddev=np.sqrt(1 / hid1_size)), name="h2_actor")
         out = tf.layers.dense(out, hid3_size, tf.tanh,
                               kernel_initializer=tf.random_normal_initializer(
-                                  stddev=np.sqrt(1 / hid2_size)), name="h3")
+                                  stddev=np.sqrt(1 / hid2_size)), name="h3_actor")
         self.means = tf.layers.dense(out, self.act_dim,
                                      kernel_initializer=tf.random_normal_initializer(
                                          stddev=np.sqrt(1 / hid3_size)), name="means")
